@@ -58,7 +58,7 @@ You can find more information about Gloo Mesh Enterprise in the official documen
 
 
 
-## Lab 1 - Deploy KinD clusters <a name="lab-1--- Prepare your POC environment-"></a>
+## Lab 1 - Deploy EKS clusters <a name="lab-1--- Prepare your POC environment-"></a>
 
 Create 3 kubernetes clusters, for each EKS cluster we recommend at least 3 worker nodes. Each node should have a minimum specification of 4 vCPUs and 16GB of memory.
 Once your clusters are ready define the following environment variables: 
