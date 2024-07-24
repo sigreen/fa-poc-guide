@@ -1103,6 +1103,16 @@ timeout --signal=INT 3m mocha ./test.js --timeout 10000 --retries=120 --bail 2> 
 
 
 ## Lab 7 - Create the gateways workspace <a name="lab-7---create-the-gateways-workspace-"></a>
+
+gloo-mesh-addons is a namespace where we may deploy any optional add on during our POC, it is not required but just creating it now in case we need it later: 
+
+```bash
+kubectl --context ${CLUSTER1} create namespace gloo-mesh-addons
+kubectl --context ${CLUSTER1} label namespace gloo-mesh-addons istio.io/rev=1-22 --overwrite
+kubectl --context ${CLUSTER2} create namespace gloo-mesh-addons
+kubectl --context ${CLUSTER2} label namespace gloo-mesh-addons istio.io/rev=1-22 --overwrite
+```
+
 [<img src="https://img.youtube.com/vi/QeVBH0eswWw/maxresdefault.jpg" alt="VIDEO LINK" width="560" height="315"/>](https://youtu.be/QeVBH0eswWw "Video Link")
 
 We're going to create a workspace for the team in charge of the Gateways.
