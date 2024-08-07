@@ -2504,7 +2504,7 @@ helm upgrade --install gloo-platform-crds gloo-platform-crds \
   --namespace gloo-mesh \
   --kube-context ${MGMT} \
   --set featureGates.ExternalWorkloads=true \
-  --version 2.6.0-rc2 \
+  --version 2.6.0-rc1 \
   --reuse-values \
   -f -<<EOF
 featureGates:
@@ -2515,7 +2515,7 @@ helm upgrade gloo-platform gloo-platform \
   --repo https://storage.googleapis.com/gloo-platform/helm-charts \
   --namespace gloo-mesh \
   --kube-context ${MGMT} \
-  --version 2.6.0-rc2 \
+  --version 2.6.0-rc1 \
   --reuse-values \
   -f -<<EOF
 featureGates:
@@ -2528,7 +2528,7 @@ helm upgrade --install gloo-platform-crds gloo-platform-crds \
   --repo https://storage.googleapis.com/gloo-platform/helm-charts \
   --namespace gloo-mesh \
   --kube-context ${CLUSTER1} \
-  --version 2.6.0-rc2 \
+  --version 2.6.0-rc1 \
   --reuse-values \
   -f -<<EOF
 featureGates:
@@ -2539,7 +2539,7 @@ helm upgrade gloo-platform gloo-platform \
   --repo https://storage.googleapis.com/gloo-platform/helm-charts \
   --namespace gloo-mesh \
   --kube-context ${CLUSTER1} \
-  --version 2.6.0-rc2 \
+  --version 2.6.0-rc1 \
   --reuse-values \
   -f -<<EOF
 glooSpireServer:
@@ -2777,7 +2777,7 @@ echo
 -->
 
 ```bash
-export GLOO_AGENT_URL=https://storage.googleapis.com/gloo-platform/vm/v2.6.0-rc2/gloo-workload-agent.deb
+export GLOO_AGENT_URL=https://storage.googleapis.com/gloo-platform/vm/v2.6.0-rc1/gloo-workload-agent.deb
 export ISTIO_URL=https://storage.googleapis.com/solo-workshops/istio-binaries/1.22.1/istio-sidecar.deb
 
 docker exec vm1 meshctl ew onboard --install \
