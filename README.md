@@ -24,6 +24,7 @@ source ./scripts/assert.sh
 * [Lab 10 - Traffic policies](#lab-10---traffic-policies-)
 * [Lab 11 - Create the Root Trust Policy](#lab-11---create-the-root-trust-policy-)
 * [Lab 12 - Leverage Virtual Destinations for east west communications](#lab-12---leverage-virtual-destinations-for-east-west-communications-)
+* [Lab 13 - Zero trust](#lab-13---zero-trust-)
 
 ## Introduction <a name="introduction"></a>
 
@@ -2125,6 +2126,370 @@ kubectl --context ${CLUSTER1} -n bookinfo-backends delete virtualdestination rev
 kubectl --context ${CLUSTER1} -n bookinfo-backends delete failoverpolicy failover
 kubectl --context ${CLUSTER1} -n bookinfo-backends delete outlierdetectionpolicy outlier-detection
 ```
+
+
+
+## Lab 13 - Zero trust <a name="lab-13---zero-trust-"></a>
+[<img src="https://img.youtube.com/vi/BiaBlUaplEs/maxresdefault.jpg" alt="VIDEO LINK" width="560" height="315"/>](https://youtu.be/BiaBlUaplEs "Video Link")
+
+In the previous step, we federated multiple meshes and established a shared root CA for a shared identity domain.
+
+All the communications between Pods in the mesh are now encrypted by default, but:
+
+- communications between services that are in the mesh and others which aren't in the mesh are still allowed and not encrypted
+- all the services can talk together
+
+Let's validate this.
+
+<!--bash
+(timeout 2s kubectl --context ${CLUSTER1} -n httpbin rollout status deploy/in-mesh) || (kubectl --context ${CLUSTER1} -n httpbin rollout restart deploy/in-mesh && kubectl --context ${CLUSTER1} -n httpbin rollout status deploy/in-mesh)
+-->
+Run the following commands to initiate a communication from a service which isn't in the mesh to a service which is in the mesh:
+
+```
+pod=$(kubectl --context ${CLUSTER1} -n httpbin get pods -l app=not-in-mesh -o jsonpath='{.items[0].metadata.name}')
+kubectl --context ${CLUSTER1} -n httpbin debug -i -q ${pod} --image=curlimages/curl -- curl -s -o /dev/null -w "%{http_code}" http://reviews.bookinfo-backends.svc.cluster.local:9080/reviews/0
+```
+
+You should get a `200` response code which confirm that the communication is currently allowed.
+
+<!--bash
+cat <<'EOF' > ./test.js
+var chai = require('chai');
+var expect = chai.expect;
+const helpers = require('./tests/chai-exec');
+describe("Communication allowed", () => {
+  it("Response code should be 200", () => {
+    const podName = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n httpbin get pods -l app=not-in-mesh -o jsonpath='{.items[0].metadata.name}'" }).replaceAll("'", "");
+    const command = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n httpbin debug -i -q " + podName + " --image=curlimages/curl -- curl -s -o /dev/null -w \"%{http_code}\" http://reviews.bookinfo-backends:9080/reviews/0" }).replaceAll("'", "");
+    expect(command).to.contain("200");
+  });
+});
+EOF
+echo "executing test dist/gloo-mesh-2-0-workshop/build/templates/steps/apps/httpbin/zero-trust/tests/not-in-mesh-to-in-mesh-allowed.test.js.liquid"
+tempfile=$(mktemp)
+echo "saving errors in ${tempfile}"
+timeout --signal=INT 3m mocha ./test.js --timeout 10000 --retries=120 --bail 2> ${tempfile} || { cat ${tempfile} && exit 1; }
+-->
+
+Run the following commands to initiate a communication from a service which is in the mesh to another service which is in the mesh:
+
+```
+pod=$(kubectl --context ${CLUSTER1} -n httpbin get pods -l app=in-mesh -o jsonpath='{.items[0].metadata.name}')
+kubectl --context ${CLUSTER1} -n httpbin debug -i -q ${pod} --image=curlimages/curl -- curl -s -o /dev/null -w "%{http_code}" http://reviews.bookinfo-backends.svc.cluster.local:9080/reviews/0
+```
+
+<!--bash
+cat <<'EOF' > ./test.js
+var chai = require('chai');
+var expect = chai.expect;
+const helpers = require('./tests/chai-exec');
+describe("Communication allowed", () => {
+  it("Response code should be 200", () => {
+    const podName = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n httpbin get pods -l app=in-mesh -o jsonpath='{.items[0].metadata.name}'" }).replaceAll("'", "");
+    const command = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n httpbin debug -i -q " + podName + " --image=curlimages/curl -- curl -s -o /dev/null -w \"%{http_code}\" http://reviews.bookinfo-backends:9080/reviews/0" }).replaceAll("'", "");
+    expect(command).to.contain("200");
+  });
+});
+EOF
+echo "executing test dist/gloo-mesh-2-0-workshop/build/templates/steps/apps/httpbin/zero-trust/tests/in-mesh-to-in-mesh-allowed.test.js.liquid"
+tempfile=$(mktemp)
+echo "saving errors in ${tempfile}"
+timeout --signal=INT 3m mocha ./test.js --timeout 10000 --retries=120 --bail 2> ${tempfile} || { cat ${tempfile} && exit 1; }
+-->
+
+You should get a `200` response code again.
+
+To enfore a zero trust policy, it shouldn't be the case.
+
+We'll leverage the Gloo Mesh workspaces to get to a state where:
+
+- communications between services which are in the mesh and others which aren't in the mesh aren't allowed anymore
+- communications between services in the mesh are allowed only when services are in the same workspace or when their workspaces have import/export rules.
+
+The Bookinfo team must update its `WorkspaceSettings` Kubernetes object to enable service isolation.
+
+```bash
+kubectl apply --context ${CLUSTER1} -f - <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: WorkspaceSettings
+metadata:
+  name: bookinfo
+  namespace: bookinfo-frontends
+spec:
+  importFrom:
+  - workspaces:
+    - name: gateways
+    resources:
+    - kind: SERVICE
+  exportTo:
+  - workspaces:
+    - name: gateways
+    resources:
+    - kind: SERVICE
+      labels:
+        app: productpage
+    - kind: SERVICE
+      labels:
+        app: reviews
+    - kind: SERVICE
+      labels:
+        app: ratings
+    - kind: ALL
+      labels:
+        expose: "true"
+  options:
+    serviceIsolation:
+      enabled: true
+      trimProxyConfig: true
+EOF
+```
+
+When service isolation is enabled, Gloo Mesh creates the corresponding Istio `AuthorizationPolicy` and `PeerAuthentication` objects to enforce zero trust.
+
+When `trimProxyConfig` is set to `true`, Gloo Mesh also creates the corresponding Istio `Sidecar` objects to program the sidecar proxies to only know how to talk to the authorized services.
+
+If you refresh the browser, you'll see that the bookinfo application is still exposed and working correctly.
+
+Run the following commands to initiate a communication from a service which isn't in the mesh to a service which is in the mesh:
+
+```
+pod=$(kubectl --context ${CLUSTER1} -n httpbin get pods -l app=not-in-mesh -o jsonpath='{.items[0].metadata.name}')
+kubectl --context ${CLUSTER1} -n httpbin debug -i -q ${pod} --image=curlimages/curl -- curl -s -o /dev/null -w "%{http_code}" http://reviews.bookinfo-backends.svc.cluster.local:9080/reviews/0
+```
+
+You shouldn't get a `200` response code, which means that the communication isn't allowed.
+
+<!--bash
+cat <<'EOF' > ./test.js
+var chai = require('chai');
+var expect = chai.expect;
+const helpers = require('./tests/chai-exec');
+describe("Communication not allowed", () => {
+  it("Response code shouldn't be 200", () => {
+    const podName = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n httpbin get pods -l app=not-in-mesh -o jsonpath='{.items[0].metadata.name}'" }).replaceAll("'", "");
+    const command = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n httpbin debug -i -q " + podName + " --image=curlimages/curl -- curl -s -o /dev/null -w \"%{http_code}\" --max-time 3 http://reviews.bookinfo-backends:9080/reviews/0" }).replaceAll("'", "");
+    expect(command).not.to.contain("200");
+  });
+});
+EOF
+echo "executing test dist/gloo-mesh-2-0-workshop/build/templates/steps/apps/httpbin/zero-trust/tests/not-in-mesh-to-in-mesh-not-allowed.test.js.liquid"
+tempfile=$(mktemp)
+echo "saving errors in ${tempfile}"
+timeout --signal=INT 3m mocha ./test.js --timeout 10000 --retries=120 --bail 2> ${tempfile} || { cat ${tempfile} && exit 1; }
+-->
+
+Run the following commands to initiate a communication from a service which is in the mesh to another service which is in the mesh:
+
+```
+pod=$(kubectl --context ${CLUSTER1} -n httpbin get pods -l app=in-mesh -o jsonpath='{.items[0].metadata.name}')
+kubectl --context ${CLUSTER1} -n httpbin debug -i -q ${pod} --image=curlimages/curl -- curl -s -o /dev/null -w "%{http_code}" http://reviews.bookinfo-backends.svc.cluster.local:9080/reviews/0
+```
+
+<!--bash
+cat <<'EOF' > ./test.js
+var chai = require('chai');
+var expect = chai.expect;
+const helpers = require('./tests/chai-exec');
+describe("Communication not allowed", () => {
+  it("Response code shouldn't be 200", () => {
+    const podName = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n httpbin get pods -l app=in-mesh -o jsonpath='{.items[0].metadata.name}'" }).replaceAll("'", "");
+    const command = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n httpbin debug -i -q " + podName + " --image=curlimages/curl -- curl -s -o /dev/null -w \"%{http_code}\" --max-time 3 http://reviews.bookinfo-backends:9080/reviews/0" }).replaceAll("'", "");
+    expect(command).not.to.contain("200");
+  });
+});
+EOF
+echo "executing test dist/gloo-mesh-2-0-workshop/build/templates/steps/apps/httpbin/zero-trust/tests/in-mesh-to-in-mesh-not-allowed.test.js.liquid"
+tempfile=$(mktemp)
+echo "saving errors in ${tempfile}"
+timeout --signal=INT 3m mocha ./test.js --timeout 10000 --retries=120 --bail 2> ${tempfile} || { cat ${tempfile} && exit 1; }
+-->
+
+You shouldn't get a `200` response code, which means that the communication isn't allowed.
+
+You've see seen how Gloo Platform can help you to enforce a zero trust policy (at workspace level) with nearly no effort.
+
+Now we are going to define some additional policies to achieve zero trust at service level.
+
+We are going to define AccessPolicies from the point of view of a service producers. 
+
+> I am owner of service A, which services needs to communicate with me?
+
+![Gloo Mesh Gateway](images/steps/zero-trust/gloo-mesh-gateway.svg)
+
+Productpage app is the only service which is exposed to the internet, so we will create an `AccessPolicy` to allow the Istio Ingress Gateway to forward requests to the productpage service.
+
+```bash
+kubectl apply --context ${CLUSTER1} -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: AccessPolicy
+metadata:
+  name: allow-productpage
+  namespace: bookinfo-frontends
+spec:
+  applyToDestinations:
+  - selector:
+      labels:
+        app: productpage
+  config:
+    authz:
+      allowedClients:
+      - serviceAccountSelector:
+          name: istio-ingressgateway-1-22-service-account
+          namespace: istio-gateways
+      - serviceAccountSelector:
+          name: istio-eastwestgateway-1-22-service-account
+          namespace: istio-gateways
+EOF
+```
+
+Details and reviews are both used by the productpage service, so we will create an AccessPolicy to allow the productpage service to forward requests to the details and reviews services.
+
+```bash
+kubectl apply --context ${CLUSTER1} -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: AccessPolicy
+metadata:
+  name: allow-details-reviews
+  namespace: bookinfo-frontends
+spec:
+  applyToDestinations:
+  - selector:
+      labels:
+        app: details
+  - selector:
+      labels:
+        app: reviews
+  config:
+    authz:
+      allowedClients:
+      - serviceAccountSelector:
+          name: bookinfo-productpage
+      allowedMethods:
+      - GET
+EOF
+```
+
+Note that this is a layer 7 policy because we only allow the `GET` method to be used by the productpage service.
+
+Finally, we will create an AccessPolicy to allow the reviews service to forward requests to the ratings service.
+
+```bash
+kubectl apply --context ${CLUSTER1} -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: AccessPolicy
+metadata:
+  name: allow-ratings
+  namespace: bookinfo-frontends
+spec:
+  applyToDestinations:
+  - selector:
+      labels:
+        app: ratings
+  config:
+    authz:
+      allowedClients:
+      - serviceAccountSelector:
+          name: bookinfo-reviews
+EOF
+```
+
+Let's check that requests from `productpage` are denied/allowed properly:
+
+```sh
+pod=$(kubectl --context ${CLUSTER1} -n bookinfo-frontends get pods -l app=productpage -o jsonpath='{.items[0].metadata.name}')
+echo "From productpage to details, should be allowed"
+kubectl --context ${CLUSTER1} -n bookinfo-frontends debug -i -q ${pod} --image=curlimages/curl -- curl -s http://details.bookinfo-backends:9080/details/0 | jq
+
+echo "From productpage to reviews with GET, should be allowed"
+kubectl --context ${CLUSTER1} -n bookinfo-frontends debug -i -q ${pod} --image=curlimages/curl -- curl -s http://reviews.bookinfo-backends:9080/reviews/0 | jq
+
+echo "From productpage to reviews with HEAD, should be denied"
+kubectl --context ${CLUSTER1} -n bookinfo-frontends debug -i -q ${pod} --image=curlimages/curl -- curl -s -m5 http://reviews.bookinfo-backends:9080/reviews/0 -X HEAD
+
+echo "From productpage to ratings, should be denied"
+kubectl --context ${CLUSTER1} -n bookinfo-frontends debug -i -q ${pod} --image=curlimages/curl -- curl -s http://ratings.bookinfo-backends:9080/ratings/0
+```
+
+You shouldn't get a `200` response code for the last one, which means that the communication isn't allowed.
+<!--bash
+cat <<'EOF' > ./test.js
+var chai = require('chai');
+var expect = chai.expect;
+const helpers = require('./tests/chai-exec');
+
+describe("Communication status", () => {
+
+  it("Response code shouldn't be 200 accessing ratings", () => {
+    const command = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n bookinfo-frontends exec deploy/productpage-v1 -- python -c \"import requests; r = requests.get('http://ratings.bookinfo-backends:9080/ratings/0', timeout=3); print(r.status_code)\"" }).replaceAll("'", "");
+    expect(command).not.to.contain("200");
+  });
+
+  it("Response code should be 200 accessing reviews with GET", () => {
+    const command = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n bookinfo-frontends exec deploy/productpage-v1 -- python -c \"import requests; r = requests.get('http://reviews.bookinfo-backends:9080/reviews/0'); print(r.status_code)\"" }).replaceAll("'", "");
+    expect(command).to.contain("200");
+  });
+
+  it("Response code should be 403 accessing reviews with HEAD", () => {
+    const command = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n bookinfo-frontends exec deploy/productpage-v1 -- python -c \"import requests; r = requests.head('http://reviews.bookinfo-backends:9080/reviews/0'); print(r.status_code)\"" }).replaceAll("'", "");
+    expect(command).to.contain("403");
+  });
+
+  it("Response code should be 200 accessing details", () => {
+    const command = helpers.getOutputForCommand({ command: "kubectl --context " + process.env.CLUSTER1 + " -n bookinfo-frontends exec deploy/productpage-v1 -- python -c \"import requests; r = requests.get('http://details.bookinfo-backends:9080/details/0'); print(r.status_code)\"" }).replaceAll("'", "");
+    expect(command).to.contain("200");
+  });
+});
+
+EOF
+echo "executing test dist/gloo-mesh-2-0-workshop/build/templates/steps/apps/httpbin/zero-trust/tests/bookinfo-access.test.js.liquid"
+tempfile=$(mktemp)
+echo "saving errors in ${tempfile}"
+timeout --signal=INT 3m mocha ./test.js --timeout 10000 --retries=120 --bail 2> ${tempfile} || { cat ${tempfile} && exit 1; }
+-->
+
+Let's rollback the change we've made in the `WorkspaceSettings` object:
+
+```bash
+kubectl apply --context ${CLUSTER1} -f - <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: WorkspaceSettings
+metadata:
+  name: bookinfo
+  namespace: bookinfo-frontends
+spec:
+  importFrom:
+  - workspaces:
+    - name: gateways
+    resources:
+    - kind: SERVICE
+  exportTo:
+  - workspaces:
+    - name: gateways
+    resources:
+    - kind: SERVICE
+      labels:
+        app: productpage
+    - kind: SERVICE
+      labels:
+        app: reviews
+    - kind: SERVICE
+      labels:
+        app: ratings
+    - kind: ALL
+      labels:
+        expose: "true"
+EOF
+```
+
+and delete the `AccessPolicies`:
+
+```bash
+kubectl --context ${CLUSTER1} delete accesspolicies -n bookinfo-frontends --all
+```
+
+
+
 
 
 
