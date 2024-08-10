@@ -38,7 +38,7 @@ helm upgrade -i istiod-1-22 istio/istiod \
 helm upgrade -i istio-eastwestgateway istio/gateway \
   --set revision=1-22 \
   --version 1.22.0 \
-  --namespace istio-eastwest  \
+  --namespace istio-gateways  \
   --kube-context=r1 \
   -f data/eastwest-values.yaml
 ```
@@ -48,7 +48,7 @@ helm upgrade -i istio-eastwestgateway istio/gateway \
 helm upgrade -i istio-ingressgateway-1-22 istio/gateway \
   --set revision=1-22 \
   --version 1.22.0 \
-  --namespace istio-ingress  \
+  --namespace istio-gateways  \
   --kube-context=r1 \
   -f data/ingress-values.yaml
 ```
@@ -60,7 +60,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: istio-ingressgateway
-  namespace: istio-ingress
+  namespace: istio-gateways
   labels:
     app: gloo-gateway
   annotations:
@@ -79,27 +79,21 @@ spec:
     targetPort: 15021
   # main http ingress port
   - port: 80
-    targetPort: 8080
+    targetPort: 80
+    protocol: TCP
     name: http2
   # main https ingress port
   - port: 443
-    targetPort: 8443
+    protocol: TCP
+    targetPort: 443
     name: https
 EOF
-```
-
-* Finally update the application namespaces to the new revision and perform a rolling restart.
-```shell
-kubectl label namespace online-boutique --overwrite istio.io/rev=1-22 --context r1 -n online-boutique
-kubectl rollout restart deploy --context r1 -n online-boutique
-kubectl label namespace gloo-platform-addons --overwrite istio.io/rev=1-22 --context r1 -n online-boutique
-kubectl rollout restart deploy --context r1 -n gloo-platform-addons
 ```
 
 * Remove Istio 
 ```shell
 helm uninstall istio-ingressgateway-1-21 \
-  --namespace istio-ingress  \
+  --namespace istio-gateways  \
   --kube-context=r1
 
 helm uninstall istiod-1-21 \
@@ -138,18 +132,56 @@ helm upgrade -i istiod-1-22 istio/istiod \
 helm upgrade -i istio-eastwestgateway istio/gateway \
   --set revision=1-22 \
   --version 1.22.0 \
-  --namespace istio-eastwest  \
+  --namespace istio-gateways  \
   --kube-context=r2 \
   -f data/eastwest-values.yaml
 ```
 
-* Finally update the application namespaces to the new revision and perform a rolling restart.
+* Deploy new Istio 1-22 ingress gateway using revisions
 ```shell
-kubectl label namespace online-boutique --overwrite istio.io/rev=1-22 --context r2 -n online-boutique
-kubectl rollout restart deploy --context r2 -n online-boutique
+helm upgrade -i istio-ingressgateway-1-22 istio/gateway \
+  --set revision=1-22 \
+  --version 1.22.0 \
+  --namespace istio-gateways  \
+  --kube-context=r2 \
+  -f data/ingress-values.yaml
+```
 
-kubectl label namespace checkout-apis --overwrite istio.io/rev=1-22 --context r2 -n checkout-apis
-kubectl rollout restart deploy --context r2 -n checkout-apis
+* Update the standalone Kubernetes service send traffic to the new Istio ingressgateway.
+```shell
+kubectl apply --context r2 -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: istio-ingressgateway
+  namespace: istio-gateways
+  labels:
+    app: gloo-gateway
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "external"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+spec:
+  type: LoadBalancer
+  selector:
+    istio: ingressgateway-1-22
+  ports:
+  # Port for health checks on path /healthz/ready.
+  # For AWS ELBs, this port must be listed first.
+  - name: status-port
+    port: 15021
+    targetPort: 15021
+  # main http ingress port
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+    name: http2
+  # main https ingress port
+  - port: 443
+    protocol: TCP
+    targetPort: 443
+    name: https
+EOF
 ```
 
 * Remove Istio 

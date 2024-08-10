@@ -395,11 +395,11 @@ metadata:
   namespace: gloo-mesh
 spec:
   workloadClusters:
-  - name: cluster1
+  - name: remote-1
     namespaces:
     - name: istio-gateways
     - name: gloo-mesh-addons
-  - name: cluster2
+  - name: remote-2
     namespaces:
     - name: istio-gateways
     - name: gloo-mesh-addons
@@ -459,11 +459,11 @@ metadata:
     allow_ingress: "true"
 spec:
   workloadClusters:
-  - name: cluster1
+  - name: remote-1
     namespaces:
     - name: bookinfo-frontends
     - name: bookinfo-backends
-  - name: cluster2
+  - name: remote-2
     namespaces:
     - name: bookinfo-frontends
     - name: bookinfo-backends
@@ -533,8 +533,8 @@ spec:
   workloads:
     - selector:
         labels:
-          istio: ingressgateway
-        cluster: cluster1
+          istio: ingressgateway-1-22
+        cluster: remote-1
   listeners: 
     - http: {}
       port:
@@ -560,7 +560,7 @@ spec:
   virtualGateways:
     - name: north-south-gw
       namespace: istio-gateways
-      cluster: cluster1
+      cluster: remote-1
   workloadSelectors: []
   http:
     - name: root
@@ -588,7 +588,7 @@ spec:
   virtualGateways:
     - name: north-south-gw
       namespace: istio-gateways
-      cluster: cluster1
+      cluster: remote-1
   workloadSelectors: []
   http:
     - name: root
@@ -634,7 +634,7 @@ spec:
           - ref:
               name: productpage
               namespace: bookinfo-frontends
-              cluster: cluster1
+              cluster: remote-1
             port:
               number: 9080
 EOF
@@ -707,8 +707,8 @@ spec:
   workloads:
     - selector:
         labels:
-          istio: ingressgateway
-        cluster: cluster1
+          istio: ingressgateway-1-22
+        cluster: remote-1
   listeners: 
     - http: {}
       port:
@@ -1872,12 +1872,12 @@ metadata:
     allow_ingress: "true"
 spec:
   workloadClusters:
-  - name: cluster1
+  - name: remote-1
     namespaces:
     - name: bookinfo-frontends
     - name: bookinfo-backends
     - name: virtualmachines
-  - name: cluster2
+  - name: remote-2
     namespaces:
     - name: bookinfo-frontends
     - name: bookinfo-backends

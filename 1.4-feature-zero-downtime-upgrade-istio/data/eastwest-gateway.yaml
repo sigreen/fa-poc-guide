@@ -27,7 +27,7 @@ spec:
           # Enable the default east-west gateway
             - name: istio-eastwestgateway
               # Deployed to gloo-mesh-gateways by default
-              namespace: istio-eastwest
+              namespace: istio-gateways
               enabled: true
               label:
                 app: gloo-internal-gateway
@@ -90,7 +90,7 @@ spec:
           # Enable the default east-west gateway
             - name: istio-eastwestgateway
               # Deployed to gloo-mesh-gateways by default
-              namespace: istio-eastwest
+              namespace: istio-gateways
               enabled: true
               label:
                 app: gloo-internal-gateway

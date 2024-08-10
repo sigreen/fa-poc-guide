@@ -31,7 +31,7 @@ spec:
           # Enable the default ingress gateway
             - name: istio-ingressgateway
               # Deployed to gloo-mesh-gateways by default
-              namespace: istio-ingress
+              namespace: istio-gateways
               enabled: true
               label:
                 app: gloo-gateway
@@ -52,11 +52,11 @@ spec:
                       name: status-port
                     # Main HTTP ingress port
                     - port: 80
-                      targetPort: 8080
+                      targetPort: 80
                       name: http2
                     # Main HTTPS ingress port
                     - port: 443
-                      targetPort: 8443
+                      targetPort: 443
                       name: https
       # The revision for this installation, such as 1-14
     - gatewayRevision: 1-22
@@ -84,7 +84,7 @@ spec:
           # Enable the default ingress gateway
             - name: istio-ingressgateway
               # Deployed to gloo-mesh-gateways by default
-              namespace: istio-ingress
+              namespace: istio-gateways
               enabled: true
               label:
                 app: gloo-gateway
@@ -105,9 +105,9 @@ spec:
                       name: status-port
                     # Main HTTP ingress port
                     - port: 80
-                      targetPort: 8080
+                      targetPort: 80
                       name: http2
                     # Main HTTPS ingress port
                     - port: 443
-                      targetPort: 8443
+                      targetPort: 443
                       name: https
