@@ -15,7 +15,7 @@ source ./scripts/assert.sh
 * [Introduction](#introduction)
 * [Lab 1.1 - Deploy EKS clusters](./1.1-deploy-eks-clusters/README.md)
 * [Lab 1.2 - Deploy Gloo Platform](./1.2-deploy-gloo-platform/README.md)
-* [Lab 1.3 - Deploy Istio](./03-deploy-istio/README.md)
+* [Lab 1.3 - Deploy Istio](./1.3-deploy-istio/README.md)
 * [Lab 2 - Deploy and register Gloo Mesh](#lab-2---deploy-and-register-gloo-mesh-)
 * [Lab 3 - Deploy Istio using Helm](#lab-3---deploy-istio-using-helm-)
 * [Lab 4 - Deploy the Bookinfo demo app](#lab-4---deploy-the-bookinfo-demo-app-)
