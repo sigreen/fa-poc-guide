@@ -1,0 +1,96 @@
+common:
+  # Name of the cluster. Be sure to modify this value to match your cluster's name.
+  cluster: "management"
+# Configuration for the Gloo management server.
+glooMgmtServer:
+  enabled: true
+  serviceType: LoadBalancer
+  image:
+    registry: gcr.io/gloo-mesh
+    repository: gloo-mesh-mgmt-server
+    tag: 2.6.0-rc1
+  relay:
+    # Push RBAC resources to the management server. Required for multicluster RBAC in the Gloo UI.
+    pushRbac: true
+  serviceOverrides:
+    metadata:
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: external
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance
+        service.beta.kubernetes.io/aws-load-balancer-backend-protocol: TCP
+        service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: deregistration_delay.connection_termination.enabled=true,deregistration_delay.timeout_seconds=1
+        service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+# Configuration for the Gloo UI.
+glooUi:
+  enabled: true
+  image:
+    registry: gcr.io/gloo-mesh
+    repository: gloo-mesh-apiserver
+    tag: 2.6.0-rc1
+  sidecars:
+    console:
+      # Container image.
+      image:
+        # Image registry.
+        registry: gcr.io/gloo-mesh
+        # Image name (repository).
+        repository: gloo-mesh-ui
+        # Version tag for the container image.
+        tag: 2.6.0-rc1
+    envoy:
+      # Container image.
+      image:
+        # Image registry.
+        registry: gcr.io/gloo-mesh
+        # Image name (repository).
+        repository: gloo-mesh-envoy
+        # Version tag for the container image.
+        tag: 2.6.0-rc1
+# Gloo Platform Redis configuration options.
+redis:
+  deployment:
+    enabled: true
+    image:
+      # Image registry.
+      registry: gcr.io/gloo-mesh
+      repository: redis
+      tag: 7.2.4-alpine
+# Helm values for configuring Prometheus. See the [Prometheus Helm chart](https://github.com/prometheus-community/helm-charts/blob/main/charts/prometheus/values.yaml) for the complete set of values.
+prometheus:
+  enabled: true
+  server:
+    image:
+      # Image registry.
+      registry: gcr.io/gloo-mesh/prometheus
+      tag: v2.49.1
+glooInsightsEngine:
+  enabled: true
+telemetryCollector:
+  enabled: true
+featureGates:
+  istioLifecycleAgent: true
+# OTLP collector for workload cluster collectors
+telemetryGateway:
+  enabled: true
+  image:
+    repository: gcr.io/gloo-mesh/gloo-otel-collector
+    tag: 2.6.0-rc1
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: external
+      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance
+      service.beta.kubernetes.io/aws-load-balancer-backend-protocol: TCP
+      service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+# Optional customization for the Gloo Platform Telemetry Collector.
+telemetryGatewayCustomization:
+  # Disable cert generation for the Gloo telemetry gateway.
+  disableCertGeneration: false
+  # Deprecated in favor of the pipelines field, which allows selectively enabling or customizing pipelines. Disables the default metrics/prometheus pipeline.
+  disableDefaultPipeline: false
+# Configuration for the Gloo Platform Jaeger instance. See the [Jaeger Helm chart](https://github.com/jaegertracing/helm-charts/blob/main/charts/jaeger/values.yaml) for the complete set of values.
+jaeger:
+  enabled: true
+demo:
+  # Enable tracing demo configuration. Jaeger should also be enabled under 'jaeger.enabled' during mgmt cluster installation.
+  tracingEnabled: true
