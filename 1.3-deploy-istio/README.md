@@ -25,7 +25,7 @@ helm repo update
 
 ![Istio Components remote-1](images/istio-cluster1.png)
 
-* Create `istio-system`, `istio-eastwest`, `istio-ingress` namespaces
+* Create `istio-system` and `istio-gateways` namespaces
 ```shell
 kubectl apply --context r1 -f data/namespaces.yaml
 ```
@@ -56,7 +56,7 @@ helm upgrade -i istiod-1-21 istio/istiod \
 helm upgrade -i istio-eastwestgateway istio/gateway \
   --set revision=1-21 \
   --version 1.21.2 \
-  --namespace istio-eastwest  \
+  --namespace istio-gateways  \
   --kube-context=r1 \
   -f data/eastwest-values.yaml
 ```
@@ -66,7 +66,7 @@ helm upgrade -i istio-eastwestgateway istio/gateway \
 helm upgrade -i istio-ingressgateway-1-21 istio/gateway \
   --set revision=1-21 \
   --version 1.21.2 \
-  --namespace istio-ingress  \
+  --namespace istio-gateways  \
   --kube-context=r1 \
   -f data/ingress-values.yaml
 ```
@@ -78,7 +78,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: istio-ingressgateway
-  namespace: istio-ingress
+  namespace: istio-gateways
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: "external"
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
@@ -110,21 +110,19 @@ EOF
 * Verify pods are running
 ```bash
 kubectl get pods --context r1 -n istio-system
-kubectl get pods --no-headers --context r1 -n istio-ingress
-kubectl get pods --no-headers --context r1 -n istio-eastwest
+kubectl get pods --no-headers --context r1 -n istio-gateways
 ```
 
 * Verify the load balancer is created`
 ```shell
-kubectl get service --context r1 -n istio-ingress
-kubectl get service --context r1 -n istio-eastwest
+kubectl get service --context r1 -n istio-gateways
 ```
 
 ## Install Istio on Cluster: remote-2
 
 ![Istio Components remote-2](images/istio-cluster2.png)
 
-* Create `istio-system`, `istio-eastwest`, `istio-ingress` namespaces
+* Create `istio-system` and `istio-gateways` namespaces
 ```shell
 kubectl apply --context r2 -f data/namespaces.yaml
 ```
@@ -155,19 +153,70 @@ helm upgrade -i istiod-1-21 istio/istiod \
 helm upgrade -i istio-eastwestgateway istio/gateway \
   --set revision=1-21 \
   --version 1.21.2 \
-  --namespace istio-eastwest  \
+  --namespace istio-gateways  \
   --kube-context=r2 \
   -f data/eastwest-values.yaml
+```
+
+* Install the Istio ingress gateway with a ClusterIP service type. For best proudction practices and to support multiple revisions a standalone Service will be created to allow easy migration of traffic.
+```shell
+helm upgrade -i istio-ingressgateway-1-21 istio/gateway \
+  --set revision=1-21 \
+  --version 1.21.2 \
+  --namespace istio-gateways  \
+  --kube-context=r2 \
+  -f data/ingress-values.yaml
+```
+
+* Create the standalone Kubernetes service to sit in front of the Istio ingressgateway.
+```shell
+kubectl apply --context r2 -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: istio-ingressgateway
+  namespace: istio-gateways
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "external"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+  labels:
+    istio: ingressgateway
+    app: gloo-gateway
+spec:
+  type: LoadBalancer
+  selector:
+    istio: ingressgateway-1-21
+  ports:
+  # Port for health checks on path /healthz/ready.
+  # For AWS ELBs, this port must be listed first.
+  - name: status-port
+    port: 15021
+    targetPort: 15021
+  # main http ingress port
+  - port: 80
+    targetPort: 8080
+    name: http2
+  # main https ingress port
+  - port: 443
+    targetPort: 8443
+    name: https
+EOF
 ```
 
 * Verify pods are running
 ```bash
 kubectl get pods --context r2 -n istio-system
-kubectl get pods --no-headers --context r2 -n istio-eastwest
+kubectl get pods --no-headers --context r2 -n istio-gateways
 ```
 
 * Verify the load balancer is created
 ```shell
-kubectl get service --context r2 -n istio-eastwest
+kubectl get service --context r2 -n istio-gateways
 ```
 
+* Export the ingress endpoints
+```bash
+export HOST_GW_CLUSTER1="$(kubectl --context ${CLUSTER1} -n istio-gateways get svc -l istio=ingressgateway -o jsonpath='{.items[0].status.loadBalancer.ingress[0].*}')"
+export HOST_GW_CLUSTER2="$(kubectl --context ${CLUSTER2} -n istio-gateways get svc -l istio=ingressgateway -o jsonpath='{.items[0].status.loadBalancer.ingress[0].*}')"
+```

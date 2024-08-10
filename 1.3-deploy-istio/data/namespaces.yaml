@@ -6,11 +6,4 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: istio-ingress
-  labels:
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: istio-eastwest
-  labels:
+  name: istio-gateways
