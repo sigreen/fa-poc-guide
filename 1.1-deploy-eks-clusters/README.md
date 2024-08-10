@@ -45,9 +45,9 @@ aws iam create-policy \
 
 * Enable OIDC provider for service accounts
 ```shell
-eksctl utils associate-iam-oidc-provider --region=us-east-2 --cluster=remote-1 --approve
-eksctl utils associate-iam-oidc-provider --region=us-west-2 --cluster=remote-2 --approve
-eksctl utils associate-iam-oidc-provider --region=us-east-2 --cluster=management --approve
+eksctl utils associate-iam-oidc-provider --region=ca-central-1 --cluster=remote-1 --approve
+eksctl utils associate-iam-oidc-provider --region=ca-west-1 --cluster=remote-2 --approve
+eksctl utils associate-iam-oidc-provider --region=ca-central-1 --cluster=management --approve
 ```
 
 * Create a Kubernetes service account named aws-load-balancer-controller in the kube-system namespace for the AWS Load Balancer Controller and annotate the Kubernetes service account with the name of the IAM role.
@@ -55,7 +55,7 @@ eksctl utils associate-iam-oidc-provider --region=us-east-2 --cluster=management
 export AWS_ACCOUNT_ID=<account_id>
 eksctl create iamserviceaccount \
   --cluster=remote-1 \
-  --region us-east-2 \
+  --region ca-central-1 \
   --namespace=kube-system \
   --name=aws-load-balancer-controller \
   --attach-policy-arn=arn:aws:iam::$AWS_ACCOUNT_ID:policy/AWSLoadBalancerControllerIAMPolicy \
@@ -64,7 +64,7 @@ eksctl create iamserviceaccount \
 
 eksctl create iamserviceaccount \
   --cluster=remote-2 \
-  --region us-west-2 \
+  --region ca-west-1 \
   --namespace=kube-system \
   --name=aws-load-balancer-controller \
   --attach-policy-arn=arn:aws:iam::$AWS_ACCOUNT_ID:policy/AWSLoadBalancerControllerIAMPolicy \
@@ -73,7 +73,7 @@ eksctl create iamserviceaccount \
 
 eksctl create iamserviceaccount \
   --cluster=management \
-  --region us-east-2 \
+  --region ca-central-1 \
   --namespace=kube-system \
   --name=aws-load-balancer-controller \
   --attach-policy-arn=arn:aws:iam::$AWS_ACCOUNT_ID:policy/AWSLoadBalancerControllerIAMPolicy \
