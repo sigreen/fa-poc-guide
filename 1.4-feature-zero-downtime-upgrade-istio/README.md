@@ -186,7 +186,11 @@ EOF
 
 * Remove Istio 
 ```shell
-helm uninstall istiod-1-21 \
+helm uninstall istio-ingressgateway-1-21 \
+  --namespace istio-gateways  \
+  --kube-context=r2
+
+  helm uninstall istiod-1-21 \
   --namespace istio-system  \
   --kube-context=r2
 ```
