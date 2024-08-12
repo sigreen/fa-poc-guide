@@ -28,6 +28,7 @@ source ./scripts/assert.sh
 * [Lab 12 - Leverage Virtual Destinations for east west communications](#lab-12---leverage-virtual-destinations-for-east-west-communications-)
 * [Lab 13 - Zero trust](#lab-13---zero-trust-)
 * [Lab 14 - VM integration with Spire](#lab-14---vm-integration-with-spire-)
+* [Lab 15 - Observability with Grafana](#lab-15---observability-grafana-)
 
 ## Introduction <a name="introduction"></a>
 
@@ -1758,6 +1759,9 @@ For AWS EC2 instance VM integration, please follow [this](https://docs.solo.io/g
 
 
 
+## Lab 15 - Observability with Grafana Operations Dashboard <a name="lab-15---observability-grafana-"></a>
+
+To setup the Gloo Mesh Enterprise operations dashboard, please follow [these](https://docs.solo.io/gloo-mesh-enterprise/latest/observability/tools/grafana/) instructions.
 
 
 
